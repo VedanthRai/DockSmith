@@ -276,4 +276,23 @@ The same `Docksmithfile` and source files produce **identical layer digests** on
 
 ## License
 
-MIT
+MIT License — Copyright (c) 2026 Vedanth Rai
+
+See [LICENSE](LICENSE) for full terms.
+
+---
+
+## Authors
+
+Built from scratch in Python as a systems programming project.
+
+| Person | Modules | Responsibility |
+|--------|---------|---------------|
+| Vedanth Rai | `parser.py`, `docksmith_cli.py`, `setup.sh` | Build language, parser, CLI entry point |
+| Person 2 | `layer_builder.py`, `image_store.py`, `state.py` | Layer system, image format, state management |
+| Person 3 | `build_engine.py`, `cache_manager.py` | Build engine, cache system |
+| Person 4 | `isolation.py`, `container_runtime.py`, `cli.py`, `scripts/` | Container runtime, isolation, UI server |
+
+---
+
+*© 2026 Vedanth Rai. All rights reserved.*
