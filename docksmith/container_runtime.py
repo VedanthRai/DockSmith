@@ -29,9 +29,10 @@ class ContainerRuntime:
 
         # Determine command
         if cmd_override:
-            if isinstance(cmd_override, list) and len(cmd_override) == 1:
-                command = ["/bin/sh", "-c", cmd_override[0]]
-            elif isinstance(cmd_override, list):
+            # Pass args directly — let the shell handle quoting only for
+            # shell-syntax strings (e.g. "echo hello world").
+            # A list of tokens is always exec'd directly.
+            if isinstance(cmd_override, list):
                 command = cmd_override
             else:
                 command = ["/bin/sh", "-c", cmd_override]

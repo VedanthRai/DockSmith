@@ -55,10 +55,12 @@ def create_minimal_rootfs_tar():
     def add_dir(tar, path):
         if path in added or path == "":
             return
-        # Add parent first
+        # Add parent first (sorted traversal for reproducibility)
         parent = os.path.dirname(path)
         if parent and parent != path:
             add_dir(tar, parent)
+        if path in added:  # may have been added by parent recursion
+            return
         info = tarfile.TarInfo(name=path)
         info.type = tarfile.DIRTYPE
         info.mode = 0o755

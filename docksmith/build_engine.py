@@ -58,10 +58,10 @@ class BuildEngine:
         cmd = None            # CMD value
         prev_layer_digest = None  # digest of last layer-producing step
         cache_busted = False  # once True, all subsequent steps are misses
-        build_start = time.time()
 
         # Track if all steps were cache hits (for manifest timestamp preservation)
-        all_cache_hits = True
+        # --no-cache always counts as a miss for timestamp purposes
+        all_cache_hits = not self.no_cache
         existing_created = None
 
         # Assemble rootfs in a temp directory that persists for the build
@@ -83,7 +83,8 @@ class BuildEngine:
                     except FileNotFoundError:
                         raise BuildError(
                             f"Base image '{image_name}:{image_tag}' not found in local store. "
-                            f"Please import it first using: docksmith-import"
+                            f"Run 'bash setup.sh' to import base images, or: "
+                            f"python3 scripts/import_base_image.py"
                         )
 
                     # Extract base image layers into build rootfs
@@ -193,8 +194,8 @@ class BuildEngine:
                         with open(layer_path, "wb") as f:
                             f.write(tar_bytes)
 
-                        # Extract into rootfs
-                        extract_layer(tar_bytes, build_rootfs)
+                        # Extract into rootfs (use path, not bytes, for consistency)
+                        extract_layer(layer_path, build_rootfs)
 
                         # Update cache
                         if not self.no_cache:
@@ -338,7 +339,7 @@ class BuildEngine:
         return saved
 
     def _resolve_copy_sources(self, srcs, context_dir):
-        """Resolve COPY source patterns to absolute paths, including directory contents."""
+        """Resolve COPY source patterns to absolute paths."""
         resolved = []
         for src in srcs:
             pattern = os.path.join(context_dir, src)
@@ -351,7 +352,8 @@ class BuildEngine:
                         dn.sort()
                         for fname in sorted(fn):
                             abs_path = os.path.join(dp, fname)
-                            resolved.append((abs_path, os.path.relpath(abs_path, context_dir)))
+                            rel = os.path.relpath(abs_path, fpath)
+                            resolved.append((abs_path, rel))
         resolved.sort(key=lambda x: x[1])
         return resolved
 

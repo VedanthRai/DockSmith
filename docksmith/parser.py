@@ -4,7 +4,6 @@ Supported instructions: FROM, COPY, RUN, WORKDIR, ENV, CMD
 """
 
 import json
-import re
 
 
 VALID_INSTRUCTIONS = {"FROM", "COPY", "RUN", "WORKDIR", "ENV", "CMD"}

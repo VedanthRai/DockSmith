@@ -210,7 +210,8 @@ class APIHandler(BaseHTTPRequestHandler):
                 run_cmd.extend(["-e", f"{k}={v}"])
             run_cmd.append(name_tag)
             if cmd_override:
-                run_cmd.append(cmd_override)
+                import shlex
+                run_cmd.extend(shlex.split(cmd_override))
 
             try:
                 result = subprocess.run(

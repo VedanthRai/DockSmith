@@ -13,9 +13,7 @@ import stat
 
 
 def _collect_files(pattern, context_dir):
-    """Resolve glob pattern. If path is a directory, walk it recursively.
-    For directories, rel_path preserves the directory name (relative to context_dir parent).
-    """
+    """Resolve glob pattern. If path is a directory, walk it recursively."""
     full_pattern = os.path.join(context_dir, pattern)
     matched = sorted(glob_module.glob(full_pattern, recursive=True))
 
@@ -24,14 +22,13 @@ def _collect_files(pattern, context_dir):
         if os.path.isfile(fpath):
             files.append((fpath, os.path.relpath(fpath, context_dir)))
         elif os.path.isdir(fpath):
-            # Use parent of matched dir so rel includes the dir name itself
-            # e.g. COPY data /app/data -> rel = "data/info.txt" -> dest = "/app/data/info.txt"
-            parent = os.path.dirname(fpath)
+            # rel is relative to fpath itself so archive name = dest + filename only
+            # e.g. COPY data /app/data -> rel = "info.txt" -> dest = "/app/data/info.txt"
             for dp, dn, fn in os.walk(fpath):
                 dn.sort()
                 for fname in sorted(fn):
                     abs_path = os.path.join(dp, fname)
-                    rel = os.path.relpath(abs_path, parent)
+                    rel = os.path.relpath(abs_path, fpath)
                     files.append((abs_path, rel))
     return files
 
@@ -104,7 +101,8 @@ def _add_parent_dirs(tar, archive_name, added_dirs):
 
 def create_run_layer(rootfs_dir, before_snapshot, after_snapshot):
     """
-    Create a delta tar layer: only files that were added or changed.
+    Create a delta tar layer: files added/changed get their content included;
+    files deleted get a whiteout entry (.wh.<name>) per OCI convention.
     """
     changed_paths = []
     for path, (mtime, size, digest) in after_snapshot.items():
@@ -112,10 +110,30 @@ def create_run_layer(rootfs_dir, before_snapshot, after_snapshot):
             changed_paths.append(path)
     changed_paths.sort()
 
+    # Deleted paths: present in before but gone from after
+    deleted_paths = sorted(
+        path for path in before_snapshot if path not in after_snapshot
+    )
+
     buf = io.BytesIO()
     added_dirs = set()
 
     with tarfile.open(fileobj=buf, mode="w") as tar:
+        # Whiteout entries for deleted files/dirs
+        for rel_path in deleted_paths:
+            parent = os.path.dirname(rel_path).lstrip("/")
+            basename = os.path.basename(rel_path)
+            wh_name = (parent + "/.wh." + basename).lstrip("/")
+            _add_parent_dirs(tar, wh_name, added_dirs)
+            info = tarfile.TarInfo(name=wh_name)
+            info.size = 0
+            info.mtime = 0
+            info.mode = 0o644
+            info.uid = 0
+            info.gid = 0
+            tar.addfile(info, io.BytesIO(b""))
+
+        # Added/changed entries
         for rel_path in changed_paths:
             abs_path = os.path.join(rootfs_dir, rel_path.lstrip("/"))
             if not os.path.exists(abs_path):
@@ -199,6 +217,19 @@ def _safe_extract(tar, dest_dir):
         abs_path = os.path.join(dest_dir, member_path)
         if not os.path.realpath(abs_path).startswith(real_dest):
             continue
+
+        # Handle OCI whiteout entries: .wh.<name> means delete <name>
+        basename = os.path.basename(member_path)
+        if basename.startswith(".wh."):
+            target_name = basename[4:]
+            target_path = os.path.join(os.path.dirname(abs_path), target_name)
+            if os.path.isdir(target_path):
+                import shutil as _shutil
+                _shutil.rmtree(target_path, ignore_errors=True)
+            elif os.path.lexists(target_path):
+                os.remove(target_path)
+            continue
+
         if member.isdir():
             os.makedirs(abs_path, exist_ok=True)
         elif member.isfile():

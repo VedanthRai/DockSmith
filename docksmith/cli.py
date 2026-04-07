@@ -122,7 +122,11 @@ def cmd_run(args):
         sys.exit(1)
 
     runtime = ContainerRuntime(state)
-    exit_code = runtime.run(image, cmd_override, env_overrides)
+    try:
+        exit_code = runtime.run(image, cmd_override, env_overrides)
+    except (ValueError, FileNotFoundError) as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
     print(f"\nContainer exited with code: {exit_code}")
     sys.exit(exit_code)
 
